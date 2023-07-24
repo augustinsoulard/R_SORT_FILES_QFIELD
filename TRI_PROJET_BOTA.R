@@ -1,7 +1,13 @@
 library(foreign)
 library(tidyverse)
 
-path =  "\\\\SERVEUR/Etudes/Environnement/Venelles/1146-EE-PLUIh-Rhone-Crussol/Cartographie/BOTA/"
+# Choix du dossier de travail
+
+WD = dirname(rstudioapi::getActiveDocumentContext()$path)
+setwd(WD)
+path =  paste0(WD,"/")
+
+#Chargement des données
 
 FLORE = read.dbf(paste0(path,"Flore/FloreDocType.dbf"))
 FLORE$id = 1:nrow(FLORE)
