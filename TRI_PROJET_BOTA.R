@@ -1,5 +1,7 @@
-library(foreign)
-library(tidyverse)
+# Chargement des librairies
+
+if(!require("foreign")){install.packages("foreign")} ; library("foreign")
+if(!require("tidyverse")){install.packages("tidyverse")} ; library("tidyverse")
 
 # Choix du dossier de travail
 
@@ -7,7 +9,7 @@ WD = dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(WD)
 path =  paste0(WD,"/")
 
-#Chargement des données
+#Chargement des donnees
 
 FLORE = read.dbf(paste0(path,"Flore/FloreDocType.dbf"))
 FLORE$id = 1:nrow(FLORE)
@@ -24,6 +26,15 @@ for(i in 1:nrow(FLORE)){
   }
   if(FLORE$Photo2[i] %in% paste0("DCIM/",FILES)){
     file.rename(as.character(FLORE$Photo2[i]),paste0("DCIM/",FLORE$NomComplet[i],FLORE$id[i],"_2.jpg"))
+  }
+  if(FLORE$Photo3[i] %in% paste0("DCIM/",FILES)){
+    file.rename(as.character(FLORE$Photo3[i]),paste0("DCIM/",FLORE$NomComplet[i],FLORE$id[i],"_3.jpg"))
+  }
+  if(FLORE$Photo4[i] %in% paste0("DCIM/",FILES)){
+    file.rename(as.character(FLORE$Photo4[i]),paste0("DCIM/",FLORE$NomComplet[i],FLORE$id[i],"_4.jpg"))
+  }
+  if(FLORE$Photo5[i] %in% paste0("DCIM/",FILES)){
+    file.rename(as.character(FLORE$Photo5[i]),paste0("DCIM/",FLORE$NomComplet[i],FLORE$id[i],"_5.jpg"))
   }
 }
 
