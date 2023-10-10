@@ -18,12 +18,20 @@ Method_enjeu <- st_read("Method_enjeu_PACAv1.4.gpkg")
 # Effectuer la jointure en utilisant les champs cd_ref de XXX et CD_NOM de YYY
 couche_jointe <- left_join(Flore_biblio, Method_enjeu, by = c("cd_ref" = "CD_NOM"))
 
-# Appliquer un filtre sur une colonne de chaîne de caractères dans la couche jointe
+# Appliquer un filtre sur une colonne de chaîne de caractères dans la couche jointe FLORE PATRIMONIALE
 couche_filtre <- couche_jointe %>%
   filter(INTERET_PACA == "FORT" | INTERET_PACA == "MODERE" | INTERET_PACA == "TRES FORT" | INTERET_PACA == "MAJEUR"
          | PROTECTION_PACA == "PN" | PROTECTION_PACA == "PR"  | PROTECTION_PACA == "PD04" | grepl("Aristolochia pistolochia", nom_valide))
 
+
+# Appliquer un filtre sur une colonne de chaîne de caractères dans la couche jointe EVEE
+couche_filtre_EVEE <- couche_jointe %>%
+  filter(EVEE == 'Alerte'| EVEE == 'Emergente'| EVEE == 'Majeure'| EVEE == 'Modérée')
+
+
+
 # Réexporter la couche filtrée en shapefile
 st_write(couche_filtre, "Flore/BIBLIO/Flore_BIBLIO_enjeu.shp")
 
+st_write(couche_filtre_EVEE, "Flore/BIBLIO/Flore_BIBLIO_EVEE.shp")
 
