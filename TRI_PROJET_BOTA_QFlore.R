@@ -1,5 +1,6 @@
 # Définir le dossier de travail
-Qflore_path = "//SERVEUR/Etudes/Environnement/Venelles/855-EE-PLU-LA_CRAU/Cartographie/BOTA" ######<=========MODIFIER
+# Qflore_path = "//SERVEUR/Etudes/Environnement/Venelles/855-EE-PLU-LA_CRAU/Cartographie/BOTA" ######<=========MODIFIER
+Qflore_path = "D:/Agence_MTDA/Etudes/855 La Crau/Cartographie/BOTA"
 #############################################################################################
 setwd(Qflore_path)
 
@@ -20,11 +21,57 @@ typologies_habitat = st_read(gpkg, layer = "typologies_habitat")
 divers_l = st_read(gpkg, layer = "divers_l")
 flore_p  = st_read(gpkg, layer = "flore_p")
 photo = st_read(gpkg, layer = "photo")
+eunis = st_read("tables.gpkg", layer = "eunis")
 
-left_join(habitat,typologies_habitat$Nom)
+#AJouter les données de typologie dans habitat
+typologies_habitat$fid = as.character(1:nrow(typologies_habitat))
+habitat = left_join(habitat,typologies_habitat, by = c("Nom"="fid"))
 
+#Joindre les tables EUNIS
+habitat = habitat %>% left_join(eunis %>% select(LB_CODE,LB_NOM_1 = LB_HAB_FR), by = c("EUNIS_1"="LB_CODE"))
+habitat = habitat %>% left_join(eunis %>% select(LB_CODE,LB_NOM_2 = LB_HAB_FR), by = c("EUNIS_2"="LB_CODE"))
+habitat = habitat %>% left_join(eunis %>% select(LB_CODE,LB_NOM_3 = LB_HAB_FR), by = c("EUNIS_3"="LB_CODE"))
+
+
+# Créer le nom des habitats
+construct_label <- function(habitat) {
+  
+  # Construction de la partie EUNIS
+  eunis_part <- paste0(
+    ifelse(!is.na(habitat$EUNIS_1) & habitat$EUNIS_1 != "", habitat$EUNIS_1, ""),
+    ifelse(!is.na(habitat$EUNIS_2) & habitat$EUNIS_2 != "", paste0("x", habitat$EUNIS_2), ""),
+    ifelse(!is.na(habitat$EUNIS_3) & habitat$EUNIS_3 != "", paste0("x", habitat$EUNIS_3), "")
+  )
+  
+  # Construction de la partie label
+  label_part <- paste0(
+    ifelse(!is.na(habitat$LB_NOM_1) & habitat$LB_NOM_1 != "", habitat$LB_NOM_1, ""),
+    ifelse(!is.na(habitat$LB_NOM_2) & habitat$LB_NOM_2 != "", paste0(" x ", habitat$LB_NOM_2), ""),
+    ifelse(!is.na(habitat$LB_NOM_3) & habitat$LB_NOM_3 != "", paste0(" x ", habitat$LB_NOM_3), "")
+  )
+  
+  # Construction du résultat final
+  if (is.na(habitat$Nom.y) | habitat$Nom.y == "") {
+    result <- paste0(eunis_part, "-", label_part)
+  } else {
+    result <- paste0(ifelse(eunis_part != "", paste0(eunis_part, "-"), ""), habitat$Nom.y)
+  }
+  
+  return(result)
+}
+
+
+# Appliquer la fonction
+habitat <- habitat %>%
+  rowwise() %>%
+  mutate(NomHabitat = construct_label(cur_data()))
+
+
+# Gestion des dossiers
 FILES = list.files("DCIM")
 dir.create("DCIM_RENOM")
+
+
 # Fonction pour copier les fichiers d'un dossier source vers un dossier destination
 copier_dossier <- function(source, destination) {
   
@@ -50,148 +97,22 @@ copier_dossier(dossier_source,dossier_destination)
 
 # Jointure de chaque table sur photo
 photo_joint <- photo %>%
-  left_join(divers_l %>% select(ID, valeur_divers), by = "ID") %>%
-  left_join(flore_p %>% select(ID, valeur_flore),  by = "ID") %>%
-  left_join(habitat %>% select(ID, valeur_habitat),  by = "ID")
+  left_join(divers_l %>% select(uuid, Nomdivers_l = Nom), by = c("Reference"="uuid")) %>%
+  left_join(flore_p %>% select(uuid, Nomflore_p = Nom),  by = c("Reference"="uuid")) %>%
+  left_join(habitat %>% select(uuid, NomHabitat),  by = c("Reference"="uuid"))
 
 # Fusionner les 3 colonnes en une seule colonne "valeur"
 photo_joint <- photo_joint %>%
-  mutate(valeur = coalesce(valeur_divers, valeur_flore, valeur_habitat))
+  mutate(Nomtotal = coalesce(Nomdivers_l, Nomflore_p, NomHabitat))
+photo_joint$Nomtotal = paste0(photo_joint$Nomtotal,'_',1:nrow(photo_joint))
 
 # Appeler la fonction pour copier les fichiers
-FLORE$photo1 = paste0(dossier_destination,"/",str_split(FLORE$photo1, "/", simplify = TRUE)[,2])
-FLORE$photo2 = paste0(dossier_destination,"/",str_split(FLORE$photo2, "/", simplify = TRUE)[,2])
-FLORE$photo3 = paste0(dossier_destination,"/",str_split(FLORE$photo3, "/", simplify = TRUE)[,2])
-FLORE$photo4 = paste0(dossier_destination,"/",str_split(FLORE$photo4, "/", simplify = TRUE)[,2])
-FLORE$photo5 = paste0(dossier_destination,"/",str_split(FLORE$photo5, "/", simplify = TRUE)[,2])
+photo_joint$Photo = paste0(dossier_destination,"/",str_split(photo_joint$Photo, "/", simplify = TRUE)[,2])
 
-for(i in 1:nrow(FLORE)){
-  cat(FLORE$photo1[i])
-  if(FLORE$photo1[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(FLORE$photo1[i]),paste0("DCIM_RENOM/",FLORE$lb_nom[i],FLORE$id[i],".jpg"))
-  }
-  if(FLORE$photo2[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(FLORE$photo2[i]),paste0("DCIM_RENOM/",FLORE$lb_nom[i],FLORE$id[i],"_2.jpg"))
-  }
-  if(FLORE$photo3[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(FLORE$photo3[i]),paste0("DCIM_RENOM/",FLORE$lb_nom[i],FLORE$id[i],"_3.jpg"))
-  }
-  if(FLORE$photo4[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(FLORE$photo4[i]),paste0("DCIM_RENOM/",FLORE$lb_nom[i],FLORE$id[i],"_4.jpg"))
-  }
-  if(FLORE$photo5[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(FLORE$photo5[i]),paste0("DCIM_RENOM/",FLORE$lb_nom[i],FLORE$id[i],"_5.jpg"))
-  }
-}
-
-
-
-HAB = read.dbf("Habitats/RELEVE_HABITAT.dbf")
-
-HAB$photo1 = paste0(dossier_destination,"/",str_split(HAB$photo1, "/", simplify = TRUE)[,2])
-HAB$photo2 = paste0(dossier_destination,"/",str_split(HAB$photo2, "/", simplify = TRUE)[,2])
-HAB$photo3 = paste0(dossier_destination,"/",str_split(HAB$photo3, "/", simplify = TRUE)[,2])
-HAB$photo4 = paste0(dossier_destination,"/",str_split(HAB$photo4, "/", simplify = TRUE)[,2])
-HAB$photo5 = paste0(dossier_destination,"/",str_split(HAB$photo5, "/", simplify = TRUE)[,2])
-
-
-######################Création de hablegend
-HAB$hablegend = NA_character_
-HAB$eunis1 = as.character(HAB$eunis1)
-HAB$eunis2 = as.character(HAB$eunis2)
-HAB$hablabel = as.character(HAB$hablabel)
-
-left_until_dash <- function(x) {
-  if (is.na(x)){return("")} else{
-    y = str_sub(x, 1, str_locate(x, "-")[1] - 1)
-    return(y)
-  }
-}
-
-# Fonction pour obtenir la partie droite d'une chaîne après le premier tiret
-right_after_dash <- function(x) {
-  if (is.na(x)) return("")
-  str_sub(x, str_locate(x, "-")[1] + 1, str_length(x))
-}
-
-for(i in 1:nrow(HAB)){
-  if(is.na(HAB$eunis1[i])){
-    HAB$hablegend[i]  = HAB$hablabel[i]
-  } else {
-    if(is.na(HAB$eunis2[i])){
-      if(is.na(HAB$hablabel[i])){
-        HAB$hablegend[i] = HAB$eunis1[i]
-      } else{
-        HAB$hablegend[i] = paste0(left_until_dash(HAB$eunis1[i]),'-',hablabel[i])
-      }
-      
-    }else{
-      if(is.na(HAB$hablabel[i])){
-        HAB$hablegend[i] = paste0(left_until_dash(HAB$eunis1[i]),'x',left_until_dash(HAB$eunis2[i]),'-',
-                               right_after_dash(HAB$eunis1[i]),' x ',right_after_dash(HAB$eunis2[i]))
-      } else{
-        HAB$hablegend[i] = paste0(left_until_dash(HAB$eunis1[i]),'x',left_until_dash(HAB$eunis2[i]),'-',
-                                  HAB$hablabel[i])
-      }
-    }
-  }
-}
-
-HAB$hablegend = str_replace_all(HAB$hablegend, "<em>|</em>", "")
-
-
-############################################
-
-HAB$id = 1:nrow(HAB)
-
-for(i in 1:nrow(HAB)){
-  if(HAB$photo1[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo1[i]),paste0("DCIM_RENOM/",HAB$hablegend[i],HAB$id[i],".jpg"))
-  }
-  if(HAB$photo2[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo2[i]),paste0("DCIM_RENOM/",HAB$hablegend[i],HAB$id[i],"_2.jpg"))
-  }
-  if(HAB$photo3[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo3[i]),paste0("DCIM_RENOM/",HAB$hablegend[i],HAB$id[i],"_2.jpg"))
-  }
-  if(HAB$photo4[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo4[i]),paste0("DCIM_RENOM/",HAB$hablegend[i],HAB$id[i],"_2.jpg"))
-  }
-  if(HAB$photo5[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo5[i]),paste0("DCIM_RENOM/",HAB$hablegend[i],HAB$id[i],"_2.jpg"))
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-#### HABITATS_POLYGONES
-HAB = read.dbf("Habitats/HABITATS_POLYGONES.dbf")
-
-HAB$photo1 = paste0(dossier_destination,"/",str_split(HAB$photo1, "/", simplify = TRUE)[,2])
-HAB$photo2 = paste0(dossier_destination,"/",str_split(HAB$photo2, "/", simplify = TRUE)[,2])
-HAB$photo3 = paste0(dossier_destination,"/",str_split(HAB$photo3, "/", simplify = TRUE)[,2])
-HAB$photo4 = paste0(dossier_destination,"/",str_split(HAB$photo4, "/", simplify = TRUE)[,2])
-HAB$photo5 = paste0(dossier_destination,"/",str_split(HAB$photo5, "/", simplify = TRUE)[,2])
-
-
-HAB$HABLABEL_COR = HAB$hablabel %>% str_remove_all("<em>") %>% str_remove_all("</em>")
-
-HAB$id = 1:nrow(HAB)
-
-for(i in 1:nrow(HAB)){
-  if(HAB$photo1[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo1[i]),paste0("DCIM_RENOM/",HAB$HABLABEL_COR[i],HAB$id[i],".jpg"))
-  }
-  if(HAB$photo2[i] %in% paste0("DCIM_RENOM/",FILES)){
-    file.rename(as.character(HAB$photo2[i]),paste0("DCIM_RENOM/",HAB$HABLABEL_COR[i],HAB$id[i],"_2.jpg"))
+for(i in 1:nrow(photo_joint)){
+  cat(photo_joint$Photo[i])
+  if(photo_joint$Photo[i] %in% paste0("DCIM_RENOM/",FILES)){
+    file.rename(as.character(photo_joint$Photo[i]),paste0("DCIM_RENOM/",photo_joint$Nomtotal[i],".jpg"))
   }
 }
 
